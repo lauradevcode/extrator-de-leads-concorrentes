@@ -4,60 +4,122 @@ import time
 from urllib.parse import quote
 import streamlit.components.v1 as components
 
-# 1. Configuração da Página (Sempre o primeiro comando)
-st.set_page_config(page_title="Extrator de Leads em Massa", page_icon="🚀", layout="wide")
+# Configuração estrita da página
+st.set_page_config(page_title="Lead Machine Pro", layout="wide")
 
-# --- 2. LÓGICA DE BOAS-VINDAS (ESTÁVEL) ---
+# --- DESIGN SYSTEM (CSS) ---
+st.markdown("""
+    <style>
+    /* Estilização Geral */
+    .stApp { background-color: #0b0e11; font-family: 'Inter', sans-serif; }
+    
+    /* Tutorial de Boas-vindas Estilizado */
+    .welcome-card {
+        background-color: #161b22;
+        padding: 40px;
+        border-radius: 8px;
+        border-left: 5px solid #00a884;
+        margin-bottom: 30px;
+    }
+    .welcome-title { color: #ffffff; font-size: 24px; font-weight: 700; margin-bottom: 10px; }
+    .welcome-text { color: #8b949e; font-size: 16px; line-height: 1.6; }
+
+    /* Botões Profissionais */
+    div.stButton > button {
+        background-color: #00a884;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 4px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    div.stButton > button:hover { background-color: #008f6f; border: none; color: white; }
+
+    /* Cards de Métricas */
+    .metric-container {
+        background-color: #161b22;
+        padding: 24px;
+        border-radius: 8px;
+        border: 1px solid #30363d;
+        text-align: center;
+    }
+    .metric-value { font-size: 32px; font-weight: 700; color: #ffffff; }
+    .metric-label { font-size: 12px; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; }
+
+    /* Inputs e Áreas de Texto */
+    .stTextArea textarea, .stTextInput input {
+        background-color: #0d1117 !important;
+        border: 1px solid #30363d !important;
+        color: #c9d1d9 !important;
+        border-radius: 4px !important;
+    }
+    
+    /* Tabs */
+    .stTabs [data-baseweb="tab-list"] { gap: 24px; }
+    .stTabs [data-baseweb="tab"] {
+        color: #8b949e;
+        font-weight: 500;
+        border: none !important;
+    }
+    .stTabs [data-baseweb="tab"][aria-selected="true"] { color: #00a884; border-bottom: 2px solid #00a884 !important; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- LÓGICA DE INTERFACE ---
 if "primeiro_acesso" not in st.session_state:
     st.session_state.primeiro_acesso = True
 
+# Tutorial de Entrada
 if st.session_state.primeiro_acesso:
-    # Criamos uma caixa de destaque que funciona como o modal da sua imagem
-    with st.container():
-        st.markdown("""
-            <div style="background-color: #1d2129; padding: 30px; border-radius: 15px; border: 2px solid #25D366; margin-bottom: 25px;">
-                <h2 style="color: #25D366; margin-top: 0;">🚀 Bem-vindo ao Extrator de Leads!</h2>
-                <p>Siga estes passos para começar sua operação:</p>
-                <ol>
-                    <li><b>Extração:</b> Cole a URL do concorrente na aba de busca e minere os contatos.</li>
-                    <li><b>Download:</b> Baixe o arquivo CSV gerado pelo sistema.</li>
-                    <li><b>Disparo:</b> Suba o CSV na aba de disparos e inicie suas mensagens.</li>
-                </ol>
-                <p style="font-size: 0.9em; color: #888;"><i>Dica: Use a tag <b>{nome}</b> para personalizar seus convites.</i></p>
+    st.markdown("""
+        <div class="welcome-card">
+            <div class="welcome-title">Bem-vindo à Operação</div>
+            <div class="welcome-text">
+                Otimize sua prospecção seguindo o fluxo de trabalho integrado:<br><br>
+                1. Módulo de busca: Extraia os dados brutos da URL desejada.<br>
+                2. Processamento: Gere o arquivo de exportação consolidado.<br>
+                3. Operação de disparo: Realize os contatos via interface otimizada.
             </div>
-        """, unsafe_allow_html=True)
-        
-        if st.button("🔥 ENTENDI, VAMOS DECOLAR!"):
-            st.session_state.primeiro_acesso = False
-            st.rerun()
-    st.stop() # Interrompe o restante da página até o usuário clicar no botão
-
-# --- 3. RESTANTE DO CÓDIGO (Só carrega após o botão ser clicado) ---
-
-# Título e Header
-st.title("📲 Extrator de Leads em Massa dos Concorrentes")
-st.markdown("---")
-
-# Barra Lateral (Sidebar)
-with st.sidebar:
-    st.header("⚙️ Configurações")
-    link_projeto = st.text_input("🔗 Link do Projeto", "https://psitelemedicina.netlify.app/", help="Link enviado na mensagem.")
-    delay = st.select_slider("⏲️ Delay (segundos)", options=[0.5, 1.0, 1.2, 1.5], value=1.2)
-    if st.button("Limpar Cache/Reiniciar"):
-        st.session_state.primeiro_acesso = True
+        </div>
+    """, unsafe_allow_html=True)
+    
+    if st.button("Iniciar Sistema"):
+        st.session_state.primeiro_acesso = False
         st.rerun()
+    st.stop()
 
-# Abas de Trabalho
-tab1, tab2 = st.tabs(["🔍 1. Extração Direta", "🚀 2. Disparo de Mensagens"])
+# --- CONTEÚDO PRINCIPAL ---
+st.markdown("<h1 style='color: white; font-size: 28px; margin-bottom: 30px;'>Gerenciador de Leads</h1>", unsafe_allow_html=True)
 
-with tab1:
-    st.subheader("Módulo de Mineração")
-    url_target = st.text_input("URL da busca (PsyMeet/Psitto):", placeholder="https://www.psymeetsocial.com/busca...")
-    if st.button("Iniciar Busca de Leads", help="Vasculha o site em busca de números de WhatsApp."):
-        st.warning("Implemente aqui sua lógica de scraping ou use um CSV.")
+# Layout de Colunas Superiores (Métricas)
+m1, m2, m3 = st.columns(3)
+with m1:
+    st.markdown('<div class="metric-container"><div class="metric-label">Total de Registros</div><div class="metric-value">0</div></div>', unsafe_allow_html=True)
+with m2:
+    st.markdown('<div class="metric-container"><div class="metric-label">Contatos Realizados</div><div class="metric-value">0</div></div>', unsafe_allow_html=True)
+with m3:
+    st.markdown('<div class="metric-container"><div class="metric-label">Taxa de Operação</div><div class="metric-value">0%</div></div>', unsafe_allow_html=True)
 
-with tab2:
-    uploaded_file = st.file_uploader("📥 Suba sua lista CSV", type=["csv"])
-    if uploaded_file:
-        # Coloque aqui sua lógica de processamento de CSV e o botão 'Abrir WhatsApp'
-        st.success("Lista carregada com sucesso!")
+st.markdown("<br>", unsafe_allow_html=True)
+
+# Navegação
+tab_extract, tab_op = st.tabs(["Extração via URL", "Gestão de Disparos"])
+
+with tab_extract:
+    st.markdown("<h3 style='font-size: 18px; color: #8b949e;'>Configuração de Busca</h3>", unsafe_allow_html=True)
+    url_input = st.text_input("Endereço de destino", placeholder="Insira a URL para mineração de dados...")
+    
+    c1, c2 = st.columns([1, 4])
+    with c1:
+        st.button("Executar Busca")
+
+with tab_op:
+    st.markdown("<h3 style='font-size: 18px; color: #8b949e;'>Importação de Base</h3>", unsafe_allow_html=True)
+    uploaded = st.file_uploader("Upload de arquivo CSV", label_visibility="collapsed")
+    
+    if uploaded:
+        st.success("Base de dados importada com sucesso.")
+        # Lógica de exibição de lista com status PENDENTE / CHAMADO usando CSS sóbrio

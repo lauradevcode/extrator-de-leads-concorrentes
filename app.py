@@ -1,65 +1,70 @@
 import streamlit as st
 import pandas as pd
 import time
-import webbrowser
 from urllib.parse import quote
 
 # Configuração da Página
-st.set_page_config(page_title="Disparador de Leads Pro", page_icon="📲", layout="wide")
+st.set_page_config(page_title="Disparador Pro", page_icon="🚀", layout="wide")
 
-# Inicialização do estado do bloco
+# Inicialização do estado de controle
 if "bloco_atual" not in st.session_state:
     st.session_state.bloco_atual = 0
 
-# --- INTERFACE ---
-st.title("📲 Gerenciador de Disparos")
+st.title("📲 Disparador de Leads (Modo Online)")
 
 with st.sidebar:
     st.header("⚙️ Configurações")
     link_projeto = st.text_input("🔗 Link do seu Site", "https://psitelemedicina.netlify.app/")
-    delay = st.select_slider("⏲️ Delay (segundos)", options=[0.5, 1.0, 1.2, 1.5], value=1.2)
     if st.button("🔄 Reiniciar Lista"):
         st.session_state.bloco_atual = 0
         st.rerun()
 
-# --- DISPARO POR CSV (SOLUÇÃO GARANTIDA) ---
-st.markdown("### 📂 Upload da Lista de Leads")
-uploaded_file = st.file_uploader("Suba o arquivo CSV extraído do navegador:", type=["csv"])
+# --- UPLOAD ---
+uploaded_file = st.file_uploader("📤 Suba sua lista CSV", type=["csv"])
 
 if uploaded_file:
     df_raw = pd.read_csv(uploaded_file)
     
-    # Lógica de limpeza do disparo_final.py
     if 'normalized' in df_raw.columns:
+        # Limpeza de dados baseada no seu script original
         df_raw['tel_limpo'] = df_raw['normalized'].astype(str).str.replace('+', '', regex=False).str.strip()
         df = df_raw.drop_duplicates(subset=['tel_limpo'])
-        # Remove o suporte do PsyMeet
-        df = df[~df['tel_limpo'].str.contains('984679566', na=False)]
+        df = df[~df['tel_limpo'].str.contains('984679566', na=False)] # Filtro de suporte
         
         contatos = df.to_dict('records')
         total = len(contatos)
         
+        # Controle de Bloco
         inicio = st.session_state.bloco_atual
         fim = min(inicio + 10, total)
         lista_bloco = contatos[inicio:fim]
 
-        # Dashboard de Progresso
-        st.write(f"📊 **Progresso:** {inicio} de {total} contatos processados.")
+        st.markdown(f"### 📋 Bloco Atual: {inicio} até {fim} (Total: {total})")
         
-        if lista_bloco:
-            # Tabela do próximo bloco
-            df_view = pd.DataFrame(lista_bloco)[['name', 'tel_limpo']]
-            st.dataframe(df_view, use_container_width=True)
+        # CRIANDO OS BOTÕES DE DISPARO
+        for pessoa in lista_bloco:
+            nome_completo = str(pessoa.get('name', 'Doutor(a)'))
+            primeiro_nome = nome_completo.split()[0].capitalize()
+            numero = pessoa['tel_limpo']
             
-            if st.button(f"🚀 ABRIR PRÓXIMAS 10 JANELAS ({inicio} - {fim})"):
-                for pessoa in lista_bloco:
-                    nome = str(pessoa['name']).split()[0].capitalize() if pd.notna(pessoa['name']) else "Doutor(a)"
-                    msg = f"Olá {nome}! Tudo bem? Veja meu projeto: {link_projeto}"
-                    link_wa = f"https://web.whatsapp.com/send?phone={pessoa['tel_limpo']}&text={quote(msg)}"
-                    webbrowser.open(link_wa)
-                    time.sleep(delay)
-                
+            # Montagem da mensagem
+            texto_msg = f"Olá {primeiro_nome}! Tudo bem? Vi seu perfil e gostaria de te convidar para conhecer: {link_projeto}"
+            link_wa = f"https://wa.me/{numero}?text={quote(texto_msg)}"
+            
+            # Layout de linha com botão individual
+            col_nome, col_btn = st.columns([3, 1])
+            col_nome.write(f"**{nome_completo}** ({numero})")
+            col_btn.get_window_extent # Espaçador
+            col_btn.link_button(f"✉️ Enviar para {primeiro_nome}", link_wa)
+
+        st.divider()
+        
+        # Botão para avançar para o próximo bloco
+        if fim < total:
+            if st.button("➡️ CARREGAR PRÓXIMOS 10"):
                 st.session_state.bloco_atual += 10
                 st.rerun()
         else:
-            st.success("🎉 Fim da lista! Todos os contatos foram abertos.")
+            st.success("🎉 Todos os leads foram listados!")
+    else:
+        st.error("A coluna 'normalized' não foi encontrada.")

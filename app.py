@@ -7,120 +7,127 @@ from urllib.parse import quote
 import webbrowser
 
 # Configuração da Página
-st.set_page_config(page_title="Extrator Pro v3", page_icon="📲", layout="wide")
+st.set_page_config(page_title="Extrator Pro v4", page_icon="📲", layout="wide")
 
-# Inicialização de estados para navegação e dados
+# Inicialização de estados
 if "bloco_atual" not in st.session_state:
     st.session_state.bloco_atual = 0
 if "leads_extraidos" not in st.session_state:
     st.session_state.leads_extraidos = None
 
-# --- CSS PARA DESIGN PREMIUM ---
+# --- CSS PARA DESIGN ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; }
-    .stButton>button { width: 100%; border-radius: 10px; background-color: #25D366; color: white; font-weight: bold; height: 3em; }
+    .stButton>button { width: 100%; border-radius: 10px; background-color: #25D366; color: white; font-weight: bold; }
     .metric-card { background-color: #1d2129; padding: 20px; border-radius: 15px; border: 1px solid #2d323d; text-align: center; }
     </style>
     """, unsafe_allow_html=True)
 
-def extrair_leads_inteligente(url):
+def extrair_dados_avancado(url):
     try:
-        # Headers para simular um navegador real e evitar bloqueios
+        # Cabeçalhos muito mais completos para parecer um Chrome real no Windows
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Cache-Control": "max-age=0",
+            "Connection": "keep-alive"
         }
-        response = requests.get(url, headers=headers, timeout=15)
-        html_content = response.text
-
-        # Regex para capturar telefones em diversos formatos (brasileiros)
-        pattern_tel = r'(?:\+?55\s?)?(?:\(?\d{2}\)?\s?)?9\d{4}[-\s]?\d{4}'
-        matches = re.finditer(pattern_tel, html_content)
         
-        leads = []
+        session = requests.Session()
+        response = session.get(url, headers=headers, timeout=20)
+        html = response.text
+
+        # 1. Busca todos os números de telefone possíveis
+        # Padrão: 11999999999 ou 5511999999999
+        telefones = re.findall(r'9\d{4}[-\s]?\d{4}', html)
+        
+        leads_finais = []
         vistos = set()
 
-        for match in matches:
-            tel_cru = match.group()
-            limpo = re.sub(r'\D', '', tel_cru)
+        # 2. Lógica de captura de nomes baseada na estrutura do PsyMeet
+        # Procuramos por blocos que contenham o nome antes do telefone
+        for tel in telefones:
+            limpo = re.sub(r'\D', '', tel)
+            # Adiciona o prefixo do Brasil se necessário
+            tel_pronto = "55" + limpo if len(limpo) == 11 else limpo
             
-            # Formatação e Filtros (Ignora suporte PsyMeet e duplicados)
-            if len(limpo) == 11: limpo = "55" + limpo
-            if limpo not in vistos and "984679566" not in limpo and len(limpo) >= 10:
-                vistos.add(limpo)
+            # Filtro anti-suporte e duplicados
+            if tel_pronto not in vistos and "984679566" not in tel_pronto:
+                vistos.add(tel_pronto)
                 
-                # Busca o nome próximo ao número (olhando 200 caracteres para trás)
-                pos = match.start()
-                contexto = html_content[max(0, pos-200):pos]
-                # Procura por padrões de nomes (ex: Nome Sobrenome)
-                nomes = re.findall(r'>([A-Z][a-z]+(?:\s[A-Z][a-z]+)+)<', contexto)
-                nome_final = nomes[-1] if nomes else "Profissional"
+                # Procura o nome: No código do PsyMeet, nomes ficam em tags de título
+                pos = html.find(tel)
+                contexto = html[max(0, pos-400):pos] # Analisa um trecho maior antes do número
                 
-                leads.append({"name": nome_final, "tel_limpo": limpo})
+                # Busca padrões de nomes próprios (Palavras com inicial maiúscula)
+                # Tenta extrair o que parece ser o nome do profissional
+                nomes_encontrados = re.findall(r'([A-Z][a-zà-ú]+(?:\s[A-Z][a-zà-ú]+)+)', contexto)
+                
+                # Pega o último nome encontrado antes do telefone (geralmente o do perfil)
+                nome_doc = nomes_encontrados[-1] if nomes_encontrados else "Profissional"
+                
+                leads_finais.append({"name": nome_doc, "tel_limpo": tel_pronto})
 
-        return leads
+        return leads_finais
     except Exception as e:
-        st.error(f"Erro na conexão: {e}")
+        st.error(f"Erro ao acessar site: {e}")
         return []
 
-# --- INTERFACE ---
+# --- INTERFACE PRINCIPAL ---
 st.title("📲 Extrator e Disparador de Leads")
 
 with st.sidebar:
     st.header("⚙️ Painel de Controle")
     link_projeto = st.text_input("🔗 Link do seu Site", "https://psitelemedicina.netlify.app/")
-    delay = st.select_slider("⏲️ Delay (segundos)", options=[0.5, 1.0, 1.2, 1.5, 2.0], value=1.2)
-    if st.button("🔄 Limpar Tudo"):
+    delay = st.select_slider("⏲️ Delay entre abas", options=[0.5, 1.0, 1.2, 1.5, 2.0], value=1.2)
+    if st.button("🔄 Limpar Cache/Reiniciar"):
         st.session_state.bloco_atual = 0
         st.session_state.leads_extraidos = None
         st.rerun()
 
-tab1, tab2 = st.tabs(["🔍 Extração via URL", "🚀 Disparar Mensagens"])
+tab1, tab2 = st.tabs(["🔍 Extração Direta", "🚀 Disparo de Mensagens"])
 
 with tab1:
-    url_input = st.text_input("Cole a URL da busca do PsyMeet:", placeholder="https://www.psymeetsocial.com/busca")
-    if st.button("🚀 Iniciar Extração de Leads"):
-        with st.spinner("Analisando o site e coletando dados..."):
-            resultados = extrair_leads_inteligente(url_input)
-            if resultados:
-                st.session_state.leads_extraidos = resultados
-                st.success(f"✅ {len(resultados)} leads encontrados com sucesso!")
-                st.dataframe(pd.DataFrame(resultados), use_container_width=True)
+    url_target = st.text_input("URL da busca (PsyMeet/Psitto):", placeholder="https://www.psymeetsocial.com/busca")
+    if st.button("🚀 Iniciar Busca de Leads"):
+        with st.spinner("O robô está tentando contornar a proteção do site..."):
+            res = extrair_dados_avancado(url_target)
+            if res:
+                st.session_state.leads_extraidos = res
+                st.success(f"Encontramos {len(res)} leads com sucesso!")
+                st.dataframe(pd.DataFrame(res), use_container_width=True)
             else:
-                st.error("❌ Não encontramos leads. Tente rolar a página no navegador antes de copiar a URL ou suba um CSV.")
+                st.error("O site bloqueou o acesso automático. Tente rolar a página até o fim no seu navegador, copie a URL novamente ou use um arquivo CSV.")
 
 with tab2:
-    copy_template = st.text_area("📝 Mensagem (use {nome} e {link})", 
-        "Olá {nome}! Tudo bem? Vi seu perfil e achei seu trabalho fantástico. Conheça meu projeto: {link}", height=120)
-    
-    # Decide a fonte dos dados
-    dados = st.session_state.leads_extraidos
-    if not dados:
-        uploaded_file = st.file_uploader("📂 Ou suba seu arquivo CSV:", type=["csv"])
-        if uploaded_file:
-            df = pd.read_csv(uploaded_file)
-            if 'normalized' in df.columns:
-                df['tel_limpo'] = df['normalized'].astype(str).str.replace('+', '', regex=False).str.strip()
-                df = df.drop_duplicates(subset=['tel_limpo'])
-                df = df[~df['tel_limpo'].str.contains('984679566', na=False)]
-                dados = df.to_dict('records')
+    if st.session_state.leads_extraidos:
+        dados = st.session_state.leads_extraidos
+    else:
+        st.warning("Nenhum lead extraído. Use a aba anterior ou suba um CSV abaixo.")
+        uploaded = st.file_uploader("Subir CSV", type="csv")
+        if uploaded:
+            df = pd.read_csv(uploaded)
+            # Lógica de processamento de CSV original
+            df['tel_limpo'] = df['normalized'].astype(str).str.replace('+', '', regex=False).str.strip()
+            df = df.drop_duplicates(subset=['tel_limpo'])
+            df = df[~df['tel_limpo'].str.contains('984679566', na=False)]
+            dados = df.to_dict('records')
+        else:
+            dados = None
 
     if dados:
-        total = len(dados)
         inicio = st.session_state.bloco_atual
-        fim = min(inicio + 10, total)
+        fim = min(inicio + 10, len(dados))
         bloco = dados[inicio:fim]
 
-        c1, c2 = st.columns(2)
-        c1.markdown(f'<div class="metric-card"><h5>Total Leads</h5><h2>{total}</h2></div>', unsafe_allow_html=True)
-        c2.markdown(f'<div class="metric-card"><h5>Posição Atual</h5><h2>{inicio} - {fim}</h2></div>', unsafe_allow_html=True)
-
         if bloco:
-            st.dataframe(pd.DataFrame(bloco)[['name', 'tel_limpo']], use_container_width=True)
-            if st.button(f"🔥 ABRIR BLOCO ({inicio} a {fim})"):
+            st.dataframe(pd.DataFrame(bloco), use_container_width=True)
+            if st.button(f"🔥 DISPARAR BLOCO ({inicio} a {fim})"):
                 for p in bloco:
-                    nome = str(p.get('name', 'Doutor(a)')).split()[0].capitalize()
-                    msg = copy_template.format(nome=nome, link=link_projeto)
+                    nome = str(p['name']).split()[0].capitalize()
+                    msg = f"Olá {nome}! Vi seu perfil e achei fantástico. Conheça meu projeto: {link_projeto}"
                     link_wa = f"https://web.whatsapp.com/send?phone={p['tel_limpo']}&text={quote(msg)}"
                     webbrowser.open(link_wa)
                     time.sleep(delay)

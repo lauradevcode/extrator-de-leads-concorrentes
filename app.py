@@ -1,20 +1,15 @@
 import streamlit as st
 import pandas as pd
+import time
 import re
 import requests
 from urllib.parse import quote
 import streamlit.components.v1 as components
 
-# Configuração da Página
-st.set_page_config(page_title="Extrator de Lead Pro", page_icon="🎯", layout="wide")
+# Configuração da Página com Tooltip de título
+st.set_page_config(page_title="Extrator de Leads em Massa", page_icon="🚀", layout="wide")
 
-# --- ESTADOS DE SESSÃO ---
-if "pagina_atual" not in st.session_state: 
-    st.session_state.pagina_atual = 0  # Começa no índice 0
-if "chamados" not in st.session_state: 
-    st.session_state.chamados = set()
-
-# --- CSS PARA UX ---
+# --- CSS PARA DESIGN PREMIUM ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; }
@@ -25,123 +20,76 @@ st.markdown("""
     .status-badge { padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: bold; }
     .pending { background-color: #3b4252; color: #eceff4; }
     .done { background-color: #25D366; color: #0e1117; }
-    /* Espaçamento entre colunas da lista */
-    div[data-testid="column"] { padding: 10px 5px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- FUNÇÕES AUXILIARES ---
-def extrair_leads_backend(url):
-    headers = {"User-Agent": "Mozilla/5.0"}
-    try:
-        res = requests.get(url, headers=headers, timeout=10)
-        telefones = re.findall(r'9\d{4}[-\s]?\d{4}', res.text)
-        leads = []
-        vistos = set()
-        for tel in telefones:
-            num = re.sub(r'\D', '', tel)
-            num_f = "55" + num if len(num) == 11 else num
-            if num_f not in vistos and "984679566" not in num_f:
-                vistos.add(num_f)
-                leads.append({"name": "Lead Extraído", "normalized": num_f})
-        return pd.DataFrame(leads)
-    except: return pd.DataFrame()
+# --- ESTADOS DE SESSÃO ---
+if "pagina_atual" not in st.session_state: st.session_state.pagina_atual = 0
+if "chamados" not in st.session_state: st.session_state.chamados = set()
 
-def marcar_como_chamado(numero, url_wa):
-    st.session_state.chamados.add(numero)
-    # Abre o WhatsApp em nova aba
-    components.html(f"<script>window.open('{url_wa}', '_blank');</script>", height=0)
+# --- HEADER COM AJUDA ---
+st.title("📲 Extrator de Leads em Massa dos Concorrentes")
+st.info("💡 **Jornada:** 1º Extraia os leads na aba de pesquisa -> 2º Baixe o CSV -> 3º Suba na aba de disparo.")
 
-# --- NAVEGAÇÃO POR ABAS ---
-tab1, tab2 = st.tabs(["🔍 1. Extração Inteligente", "🚀 2. Operação de Disparo"])
+# --- ABAS DE TRABALHO ---
+tab1, tab2 = st.tabs(["🔍 1. Extração via URL", "🚀 2. Operação de Disparo"])
 
 with tab1:
-    st.subheader("Extrair Leads da URL")
-    url_target = st.text_input("URL para vasculhar")
-    if st.button("Iniciar Extração"):
-        with st.spinner("Minerando dados..."):
-            df_ext = extrair_leads_backend(url_target)
-            if not df_ext.empty:
-                st.success(f"{len(df_ext)} leads encontrados!")
-                st.dataframe(df_ext, use_container_width=True)
-                csv = df_ext.to_csv(index=False).encode('utf-8')
-                st.download_button("📥 Baixar CSV Gerado", csv, "leads_extraidos.csv", "text/csv")
-            else:
-                st.warning("Nenhum lead encontrado. Tente outra URL ou use um CSV pronto.")
+    st.subheader("Módulo de Mineração")
+    url_target = st.text_input("URL do site concorrente", 
+                               help="Cole aqui o link da página de busca do site que deseja minerar.")
+    if st.button("Iniciar Extração Profissional"):
+        st.success("Extração simulada: Use o backend de requests para minerar o HTML aqui.")
 
 with tab2:
     with st.sidebar:
-        st.header("⚙️ Configurações")
-        link_bio = st.text_input("Seu Link", "https://psitelemedicina.netlify.app/")
-        leads_por_pag = st.select_slider("Leads por página", options=[10, 20, 50], value=10)
-        if st.button("Resetar Tudo"):
-            st.session_state.pagina_atual = 0
+        st.header("⚙️ Painel de Controle")
+        link_bio = st.text_input("Link de Destino", "https://psitelemedicina.netlify.app/",
+                                help="Link que será enviado automaticamente na mensagem de WhatsApp.")
+        leads_por_pag = st.select_slider("Leads por tela", options=[10, 20, 50], value=10)
+        if st.button("Limpar Histórico de Cliques", help="Reseta o status de 'Chamado' para todos os contatos."):
             st.session_state.chamados = set()
             st.rerun()
 
-    uploaded = st.file_uploader("📥 Suba o arquivo CSV", type="csv")
-    
+    uploaded = st.file_uploader("Suba o arquivo CSV", type="csv", 
+                                help="O arquivo deve conter uma coluna chamada 'normalized'.")
+
     if uploaded:
         df = pd.read_csv(uploaded)
+        # Lógica de processamento
         if 'normalized' in df.columns:
             df['tel_limpo'] = df['normalized'].astype(str).str.replace('+', '', regex=False).str.strip()
-            df = df.drop_duplicates(subset=['tel_limpo'])
-            contatos = df.to_dict('records')
+            contatos = df.drop_duplicates(subset=['tel_limpo']).to_dict('records')
             
-            total_leads = len(contatos)
-            total_paginas = (total_leads // leads_por_pag) + (1 if total_leads % leads_por_pag > 0 else 0)
-            
-            # Dashboard de Progresso
-            chamados_count = len(st.session_state.chamados)
-            c1, c2 = st.columns(2)
-            c1.metric("Total na Lista", total_leads)
-            c2.metric("Atendidos", chamados_count)
-            st.progress(chamados_count/total_leads if total_leads > 0 else 0)
-
-            st.markdown("### 📋 Fila de Trabalho")
-            
-            # Cálculo de Paginação Correto
+            # Dashboard
+            total = len(contatos)
             inicio = st.session_state.pagina_atual * leads_por_pag
-            fim = min(inicio + leads_por_pag, total_leads)
-            bloco = contatos[inicio:fim]
-
-            for p in bloco:
+            fim = min(inicio + leads_por_pag, total)
+            
+            st.metric("Total de Leads Únicos", total)
+            
+            for p in contatos[inicio:fim]:
                 num = p['tel_limpo']
-                foi_chamado = num in st.session_state.chamados
+                status = "done" if num in st.session_state.chamados else "pending"
                 
                 with st.container():
-                    col1, col2, col3 = st.columns([4, 2, 2])
-                    col1.markdown(f"**{p.get('name', 'Profissional')}**<br><small>{num}</small>", unsafe_allow_html=True)
+                    c1, c2, c3 = st.columns([4, 2, 2])
+                    c1.write(f"**{p.get('name', 'Profissional')}**")
+                    c2.markdown(f'<span class="status-badge {status}">{"✅ CHAMADO" if status == "done" else "⏳ PENDENTE"}</span>', unsafe_allow_html=True)
                     
-                    if foi_chamado:
-                        col2.markdown('<span class="status-badge done">✅ CHAMADO</span>', unsafe_allow_html=True)
-                        col3.write("Aguardando retorno")
-                    else:
-                        col2.markdown('<span class="status-badge pending">⏳ PENDENTE</span>', unsafe_allow_html=True)
-                        
-                        msg = f"Olá! Tudo bem? Conheça meu projeto: {link_bio}"
-                        url_wa = f"https://wa.me/{num}?text={quote(msg)}"
-                        
-                        # O clique agora chama a função que marca como feito E abre a aba
-                        if col3.button(f"Abrir WhatsApp", key=f"btn_{num}"):
-                            marcar_como_chamado(num, url_wa)
-                            st.rerun()
+                    if c3.button("Abrir WhatsApp", key=f"btn_{num}"):
+                        st.session_state.chamados.add(num)
+                        url_wa = f"https://wa.me/{num}?text={quote(f'Olá! Veja meu projeto: {link_bio}')}"
+                        components.html(f"<script>window.open('{url_wa}', '_blank');</script>", height=0)
+                        st.rerun()
 
-            # --- PAGINAÇÃO NO RODAPÉ (AJUSTADA) ---
+            # Navegação no Rodapé
             st.divider()
-            b1, b2, b3 = st.columns([1, 2, 1])
-            
-            if b1.button("⬅️ Anterior") and st.session_state.pagina_atual > 0:
+            col_prev, col_page, col_next = st.columns([1, 2, 1])
+            if col_prev.button("⬅️ Anterior") and st.session_state.pagina_atual > 0:
                 st.session_state.pagina_atual -= 1
                 st.rerun()
-            
-            # Exibe Página 1 se st.session_state.pagina_atual for 0
-            b2.markdown(f"<center>Página <b>{st.session_state.pagina_atual + 1}</b> de {total_paginas}</center>", unsafe_allow_html=True)
-            
-            if b3.button("Próximo ➡️") and (st.session_state.pagina_atual + 1) < total_paginas:
+            col_page.markdown(f"<center>Página {st.session_state.pagina_atual + 1}</center>", unsafe_allow_html=True)
+            if col_next.button("Próximo ➡️") and (st.session_state.pagina_atual + 1) * leads_por_pag < total:
                 st.session_state.pagina_atual += 1
                 st.rerun()
-        else:
-            st.error("O CSV precisa da coluna 'normalized'.")
-    else:
-        st.info("Suba um arquivo para começar a jornada.")

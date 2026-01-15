@@ -6,7 +6,7 @@ import requests
 from urllib.parse import quote
 
 # Configuração da Página
-st.set_page_config(page_title="Extrator Pro", page_icon="📲", layout="wide")
+st.set_page_config(page_title="Extrator Pro v2", page_icon="📲", layout="wide")
 
 # Inicialização de estados
 if "bloco_atual" not in st.session_state:
@@ -23,23 +23,49 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-def extrair_leads_da_url(url):
+def extrair_leads_inteligente(url):
     try:
-        header = {"User-Agent": "Mozilla/5.0"}
-        response = requests.get(url, headers=header, timeout=10)
-        html = response.text
-        # Busca padrões de telefone brasileiros (simplificado)
-        padrao = re.findall(r'(?:\+?55\s?)?(?:\(?\d{2}\)?\s?)?9\d{4}[-\s]?\d{4}', html)
-        leads = list(set([re.sub(r'\D', '', p) for p in padrao])) # Limpa e remove duplicados
+        # Simulando um navegador real para evitar bloqueios e acessar mais dados
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
+        response = requests.get(url, headers=headers, timeout=15)
+        html_content = response.text
+
+        # Regex aprimorada para capturar números brasileiros em diversos formatos
+        # Captura: +5511999999999, 11999999999, (11) 99999-9999, etc.
+        pattern_tel = r'(?:\+?55\s?)?(?:\(?\d{2}\)?\s?)?9\d{4}[-\s]?\d{4}'
+        telefones_crus = re.findall(pattern_tel, html_content)
         
-        # Cria um formato compatível com o seu disparador
-        lista_formatada = [{"name": f"Lead {i+1}", "tel_limpo": tel} for i, tel in enumerate(leads)]
-        return lista_formatada
+        leads = []
+        vistos = set()
+
+        for tel in telefones_crus:
+            limpo = re.sub(r'\D', '', tel)
+            # Garante que tem o 55 no início se o usuário esqueceu
+            if len(limpo) == 11: limpo = "55" + limpo
+            
+            # Filtro de segurança (Evita o suporte do PsyMeet e duplicados)
+            if limpo not in vistos and "984679566" not in limpo:
+                vistos.add(limpo)
+                
+                # Tenta buscar um nome no texto ao redor do número (Lógica de proximidade)
+                # No PsyMeet, nomes geralmente estão em tags <h3> ou <span> próximas
+                pos = html_content.find(tel)
+                trecho = html_content[max(0, pos-150):pos] # Pega 150 caracteres antes do número
+                
+                # Procura por padrões de nomes (Letra maiúscula seguida de minúsculas)
+                nomes_encontrados = re.findall(r'([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)', trecho)
+                nome_final = nomes_encontrados[-1] if nomes_encontrados else "Profissional"
+                
+                leads.append({"name": nome_final, "tel_limpo": limpo})
+
+        return leads
     except Exception as e:
-        st.error(f"Erro ao acessar site: {e}")
+        st.error(f"Erro na extração: {e}")
         return []
 
-st.title("📲 Extrator e Disparador Inteligente")
+st.title("📲 Extrator e Disparador de Leads")
 
 # --- BARRA LATERAL ---
 with st.sidebar:
@@ -51,64 +77,56 @@ with st.sidebar:
         st.session_state.leads_extraidos = None
         st.rerun()
 
-# --- INTERFACE PRINCIPAL ---
-tab1, tab2 = st.tabs(["🔍 Extração Automática", "🚀 Gerenciar Envio"])
+# --- ABAS ---
+tab1, tab2 = st.tabs(["🔍 Vasculhar Site", "🚀 Disparar Mensagens"])
 
 with tab1:
-    url_alvo = st.text_input("Cole a URL para buscar leads (ex: psitto.com.br)")
-    if st.button("🔍 Vasculhar Site agora"):
-        with st.spinner("Procurando números de contato..."):
-            leads = extrair_leads_da_url(url_alvo)
-            if leads:
-                st.session_state.leads_extraidos = leads
-                st.success(f"Sucesso! Encontramos {len(leads)} leads no site.")
+    url_input = st.text_input("Insira a URL do PsyMeet ou similar:", placeholder="https://www.psymeet.com.br/busca...")
+    if st.button("Iniciar Extração Profissional"):
+        with st.spinner("O robô está analisando o código do site..."):
+            resultados = extrair_leads_inteligente(url_input)
+            if resultados:
+                st.session_state.leads_extraidos = resultados
+                st.success(f"Encontramos {len(resultados)} leads com sucesso!")
+                st.dataframe(pd.DataFrame(resultados), use_container_width=True)
             else:
-                st.warning("Nenhum lead encontrado automaticamente. Por favor, suba um arquivo CSV na aba de Disparo.")
+                st.error("Não foi possível extrair leads automaticamente desta URL. O site pode estar protegido ou os dados são carregados apenas por scroll.")
 
 with tab2:
-    copy_template = st.text_area("📝 Sua Mensagem", "Olá {nome}! Tudo bem? Veja meu projeto: {link}", height=100)
-    
-    # LÓGICA DE DADOS: Prioriza Extração, depois CSV
-    dados_para_envio = None
-    
     if st.session_state.leads_extraidos:
-        st.info("💡 Usando leads extraídos automaticamente do site.")
-        dados_para_envio = st.session_state.leads_extraidos
+        dados = st.session_state.leads_extraidos
+        st.info("✅ Usando leads extraídos da URL.")
     else:
-        uploaded_file = st.file_uploader("📤 Nenhum lead extraído. Suba seu CSV:", type=["csv"])
+        uploaded_file = st.file_uploader("📤 Sem extração ativa. Suba seu CSV:", type=["csv"])
         if uploaded_file:
-            df_raw = pd.read_csv(uploaded_file)
-            if 'normalized' in df_raw.columns:
-                df_raw['tel_limpo'] = df_raw['normalized'].astype(str).str.replace('+', '', regex=False).str.strip()
-                df = df_raw.drop_duplicates(subset=['tel_limpo'])
+            df = pd.read_csv(uploaded_file)
+            if 'normalized' in df.columns:
+                df['tel_limpo'] = df['normalized'].astype(str).str.replace('+', '', regex=False).strip()
+                df = df.drop_duplicates(subset=['tel_limpo'])
                 df = df[~df['tel_limpo'].str.contains('984679566', na=False)]
-                dados_para_envio = df.to_dict('records')
+                dados = df.to_dict('records')
             else:
-                st.error("Coluna 'normalized' não encontrada no CSV.")
+                st.error("Coluna 'normalized' não encontrada.")
+                dados = None
+        else:
+            dados = None
 
-    # Exibição e Disparo
-    if dados_para_envio:
-        total = len(dados_para_envio)
+    if dados:
+        total = len(dados)
         inicio = st.session_state.bloco_atual
         fim = min(inicio + 10, total)
-        lista_bloco = dados_para_envio[inicio:fim]
+        bloco = dados[inicio:fim]
 
-        col1, col2 = st.columns(2)
-        col1.markdown(f'<div class="metric-card"><h5>Total Leads</h5><h2>{total}</h2></div>', unsafe_allow_html=True)
-        col2.markdown(f'<div class="metric-card"><h5>Bloco</h5><h2>{inicio}-{fim}</h2></div>', unsafe_allow_html=True)
-
-        if lista_bloco:
-            st.dataframe(pd.DataFrame(lista_bloco)[['name', 'tel_limpo']], use_container_width=True)
-            
-            if st.button(f"🚀 ABRIR BLOCO ({inicio} a {fim})"):
+        if bloco:
+            st.subheader(f"Bloco Atual: {inicio} a {fim}")
+            # Botão de disparo original
+            if st.button(f"🚀 ABRIR BLOCO ({len(bloco)} abas)"):
                 import webbrowser
-                for pessoa in lista_bloco:
-                    nome = str(pessoa.get('name', 'Doutor(a)')).split()[0].capitalize()
-                    texto = copy_template.format(nome=nome, link=link_projeto)
-                    link_wa = f"https://web.whatsapp.com/send?phone={pessoa['tel_limpo']}&text={quote(texto)}"
+                for p in bloco:
+                    nome = str(p.get('name', 'Doutor(a)')).split()[0].capitalize()
+                    msg = f"Olá {nome}! Tudo bem? Vi seu perfil e convido você para o projeto: {link_projeto}"
+                    link_wa = f"https://web.whatsapp.com/send?phone={p['tel_limpo']}&text={quote(msg)}"
                     webbrowser.open(link_wa)
                     time.sleep(delay)
                 st.session_state.bloco_atual += 10
                 st.rerun()
-        else:
-            st.success("🎉 Todos os leads foram processados!")

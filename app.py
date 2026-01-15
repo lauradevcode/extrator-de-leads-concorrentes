@@ -6,7 +6,7 @@ from urllib.parse import quote
 import streamlit.components.v1 as components
 
 # Configuração da Página
-st.set_page_config(page_title="Lead Machine Pro", page_icon="🎯", layout="wide")
+st.set_page_config(page_title="Extrator de Lead Pro", page_icon="🎯", layout="wide")
 
 # --- ESTADOS DE SESSÃO ---
 if "pagina_atual" not in st.session_state: 

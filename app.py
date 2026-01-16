@@ -28,7 +28,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. FUNÇÃO DO POP-UP (BOTÃO REMOVIDO) ---
+# --- 3. FUNÇÃO DO POP-UP ---
 @st.dialog("☕ Apoie o Projeto")
 def modal_apoio():
     st.write("Sua ajuda é fundamental para manter o servidor online e trazer novas atualizações!")
@@ -46,7 +46,6 @@ if "lista_leads" not in st.session_state: st.session_state.lista_leads = []
 with st.sidebar:
     st.header("⚙️ Configurações")
     
-    # Campo para o usuário criar sua própria mensagem
     st.subheader("Script de Mensagem")
     msg_custom = st.text_area(
         "Personalize seu texto:", 
@@ -59,7 +58,6 @@ with st.sidebar:
     
     st.divider()
     
-    # Mensagem de apoio fixa na lateral
     st.markdown(f"""
     <div class="pix-sidebar">
         <b style="color:white; font-size:16px;">☕ Apoie o Projeto</b><br>
@@ -84,7 +82,8 @@ with tab_url:
     url_minerar = st.text_input("Cole a URL para extração:")
     if st.button("Iniciar Mineração"):
         st.info("Simulação: Leads extraídos com sucesso!")
-        st.session_state.lista_leads = [{"name": "Lead Exemplo", "normalized": "5511999999999"}]
+        # Apenas para teste visual da paginação se não tiver CSV
+        st.session_state.lista_leads = [{"name": f"Lead {i}", "normalized": f"551199999{i:04d}"} for i in range(25)]
         modal_apoio()
 
 with tab_csv:
@@ -103,7 +102,6 @@ if st.session_state.lista_leads:
     total = len(leads)
     feitos = len(st.session_state.chamados)
     
-    # Dashboard de Métricas
     m1, m2, m3 = st.columns(3)
     m1.markdown(f'<div class="metric-card"><div style="color:#8b949e">TOTAL</div><div class="metric-val">{total}</div></div>', unsafe_allow_html=True)
     m2.markdown(f'<div class="metric-card"><div style="color:#8b949e">CHAMADOS</div><div class="metric-val">{feitos}</div></div>', unsafe_allow_html=True)
@@ -111,9 +109,10 @@ if st.session_state.lista_leads:
 
     st.write("---")
 
-    # Lista com Paginação
+    # LÓGICA DE PAGINAÇÃO REINSERIDA
     inicio = st.session_state.pagina * registros_pag
-    bloco = leads[inicio : inicio + registros_pag]
+    fim = inicio + registros_pag
+    bloco = leads[inicio : fim]
 
     for p in bloco:
         num = str(p['normalized']).replace('+', '').replace(' ', '').strip()
@@ -133,15 +132,31 @@ if st.session_state.lista_leads:
             if not foi_chamado:
                 if st.button("Abrir WhatsApp", key=f"btn_{num}"):
                     st.session_state.chamados.add(num)
-                    
-                    # Processa a mensagem customizada
                     texto = msg_custom.replace("{nome}", p.get('name', 'Doutor(a)')).replace("{link}", link_destino)
-                    
                     link_wa = f"https://wa.me/{num}?text={quote(texto)}"
                     js = f'window.open("{link_wa}", "_blank");'
                     components.html(f"<script>{js}</script>", height=0)
                     time.sleep(0.5)
                     st.rerun()
         st.markdown("<hr style='margin:5px 0; border-color:#1d2129;'>", unsafe_allow_html=True)
+
+    # CONTROLES DE PAGINAÇÃO (Abaixo da lista)
+    st.markdown("<br>", unsafe_allow_html=True)
+    c_pag1, c_pag2, c_pag3 = st.columns([1, 2, 1])
+    
+    with c_pag1:
+        if st.button("⬅️ Anterior") and st.session_state.pagina > 0:
+            st.session_state.pagina -= 1
+            st.rerun()
+            
+    with c_pag2:
+        pag_atual = st.session_state.pagina + 1
+        total_paginas = (total // registros_pag) + (1 if total % registros_pag > 0 else 0)
+        st.markdown(f"<center style='color:#8b949e;'>Página {pag_atual} de {total_paginas}</center>", unsafe_allow_html=True)
+        
+    with c_pag3:
+        if st.button("Próximo ➡️") and fim < total:
+            st.session_state.pagina += 1
+            st.rerun()
 else:
     st.info("Aguardando carregamento de contatos...")

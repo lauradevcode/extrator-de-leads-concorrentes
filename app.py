@@ -60,7 +60,7 @@ with st.sidebar:
                 '<span style="font-size:12px; color:#8b949e;">Ajude a manter o servidor online!</span></div>', unsafe_allow_html=True)
     
     # O st.code cria uma caixa que tem um botão nativo de "copiar" no canto direito
-    st.write("👉 Clique no ícone à direita para copiar:")
+    st.write("Clique no ícone à direita para copiar:")
     st.code("06060001190", language="text")
     st.caption("Chave PIX (CPF)")
     

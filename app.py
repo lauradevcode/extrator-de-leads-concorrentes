@@ -18,19 +18,16 @@ st.markdown("""
     }
     .metric-val { font-size: 24px; font-weight: 700; color: #ffffff; }
     .metric-lab { font-size: 10px; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; }
-    .contact-row {
-        background-color: #161b22; padding: 16px 24px; border-radius: 6px;
-        border: 1px solid #30363d; margin-bottom: 12px;
-    }
     div.stButton > button {
         background-color: #00a884; color: white; border: none;
         padding: 8px 20px; border-radius: 4px; font-weight: 600;
+        width: 100%;
     }
     div.stButton > button:hover { background-color: #008f6f; color: white; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. FUNCAO PARA LER NOTION ---
+# --- 3. FUNCOES DE APOIO ---
 def buscar_leads_notion(token, database_id):
     url = f"https://api.notion.com/v1/databases/{database_id}/query"
     headers = {
@@ -51,13 +48,10 @@ def buscar_leads_notion(token, database_id):
                     p_type = props["Telefone"]["type"]
                     if p_type == "phone_number": tel = props["Telefone"]["phone_number"]
                     elif props["Telefone"]["rich_text"]: tel = props["Telefone"]["rich_text"][0]["text"]["content"]
-                
-                if tel:
-                    leads.append({"name": nome, "normalized": tel})
+                if tel: leads.append({"name": nome, "normalized": tel})
             return leads
         return None
-    except:
-        return None
+    except: return None
 
 # --- 4. ESTADOS DE SESSAO ---
 if "chamados" not in st.session_state: st.session_state.chamados = set()
@@ -66,59 +60,55 @@ if "lista_leads" not in st.session_state: st.session_state.lista_leads = []
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
-    st.markdown("<h3 style='color: white;'>Ajustes Gerais</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color: white;'>Configuracoes</h3>", unsafe_allow_html=True)
     link_destino = st.text_input("Link de destino", "https://psitelemedicina.netlify.app/")
     registros_pag = st.select_slider("Registros por pagina", options=[10, 20, 50], value=10)
-    
-    st.divider()
-    if st.button("Resetar Tudo"):
+    if st.button("Limpar Tudo"):
         st.session_state.chamados = set()
         st.session_state.lista_leads = []
-        st.session_state.pagina = 0
         st.rerun()
 
 # --- 6. AREA PRINCIPAL ---
 st.markdown("<h2 style='color: white; margin-bottom: 25px;'>Gerenciador de Leads</h2>", unsafe_allow_html=True)
 
-# Tabs para escolha da fonte de dados
-tab_csv, tab_notion = st.tabs(["📁 Importar CSV", "🔌 Conectar Notion (Opcional)"])
+# Tabs para as 3 formas de entrada
+tab_url, tab_csv, tab_notion = st.tabs(["🔍 Extracao via URL", "📁 Importar CSV", "🔌 Conectar Notion"])
+
+with tab_url:
+    url_minerar = st.text_input("Cole a URL do site (ex: PsyMeet)", placeholder="https://www.psymeet.social/...")
+    if st.button("Iniciar Mineracao"):
+        st.warning("Integracao de mineracao ativa. Aguardando processamento da URL...")
+        # Aqui entraria sua logica de scraping da URL
 
 with tab_csv:
-    arquivo = st.file_uploader("Suba sua lista consolidada", type="csv")
+    arquivo = st.file_uploader("Suba seu arquivo CSV", type="csv")
     if arquivo:
         df = pd.read_csv(arquivo)
         if 'normalized' in df.columns:
             st.session_state.lista_leads = df.to_dict('records')
-            st.success(f"{len(st.session_state.lista_leads)} leads carregados via CSV!")
-        else:
-            st.error("Coluna 'normalized' nao encontrada.")
+            st.success(f"{len(st.session_state.lista_leads)} leads carregados!")
 
 with tab_notion:
-    st.info("Configuracao opcional para puxar dados direto do seu workspace.")
-    n_token = st.text_input("Internal Integration Secret", type="password")
-    n_db_id = st.text_input("Database ID")
-    if st.button("🔄 Sincronizar com Notion"):
-        if n_token and n_db_id:
-            leads = buscar_leads_notion(n_token, n_db_id)
+    n_token = st.text_input("Notion Secret", type="password")
+    n_id = st.text_input("Database ID")
+    if st.button("Sincronizar Notion"):
+        if n_token and n_id:
+            leads = buscar_leads_notion(n_token, n_id)
             if leads:
                 st.session_state.lista_leads = leads
-                st.success(f"{len(leads)} leads importados do Notion!")
+                st.success(f"{len(leads)} leads importados!")
                 st.rerun()
-            else:
-                st.error("Nao foi possivel conectar. Verifique as chaves e permissoes.")
-        else:
-            st.warning("Preencha o Secret e o ID para conectar.")
 
-# --- 7. EXIBICAO DA FILA (Apenas se houver dados) ---
+# --- 7. EXIBICAO DA FILA DE DISPAROS ---
 if st.session_state.lista_leads:
     contatos = st.session_state.lista_leads
     for c in contatos:
-        c['tel_limpo'] = str(c['normalized']).replace('+', '').replace(' ', '').strip()
+        c['tel_limpo'] = str(c.get('normalized', '')).replace('+', '').replace(' ', '').strip()
     
     total_l = len(contatos)
     feitos = len(st.session_state.chamados)
 
-    # Dashboard
+    # Metricas
     m1, m2, m3 = st.columns(3)
     m1.markdown(f'<div class="metric-card"><div class="metric-lab">Total</div><div class="metric-val">{total_l}</div></div>', unsafe_allow_html=True)
     m2.markdown(f'<div class="metric-card"><div class="metric-lab">Chamados</div><div class="metric-val">{feitos}</div></div>', unsafe_allow_html=True)
@@ -126,15 +116,13 @@ if st.session_state.lista_leads:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Paginacao
+    # Lista
     inicio = st.session_state.pagina * registros_pag
-    fim = inicio + registros_pag
-    bloco = contatos[inicio:fim]
+    bloco = contatos[inicio : inicio + registros_pag]
 
     for p in bloco:
         num = p['tel_limpo']
         foi_chamado = num in st.session_state.chamados
-        
         col_info, col_status, col_acao = st.columns([4, 1, 1.5])
         
         with col_info:
@@ -147,24 +135,22 @@ if st.session_state.lista_leads:
         
         with col_acao:
             if not foi_chamado:
-                if st.button("Enviar WhatsApp", key=f"btn_{num}"):
+                if st.button("Abrir WhatsApp", key=f"btn_{num}"):
                     st.session_state.chamados.add(num)
                     msg = quote(f"Ola {p.get('name', 'Doutor(a)')}, conheca meu projeto: {link_destino}")
                     js = f'window.open("https://wa.me/{num}?text={msg}", "_blank");'
                     components.html(f"<script>{js}</script>", height=0)
                     time.sleep(0.5)
                     st.rerun()
-        st.markdown("<hr style='margin:5px 0; border-color:#1d2129;'>", unsafe_allow_html=True)
+        st.markdown("<hr style='margin:5px 0; border-color:#30363d;'>", unsafe_allow_html=True)
 
-    # Navegacao de Paginas
-    st.markdown("<br>", unsafe_allow_html=True)
+    # Paginacao
     n1, n2, n3 = st.columns([1, 2, 1])
     if n1.button("Anterior") and st.session_state.pagina > 0:
         st.session_state.pagina -= 1
         st.rerun()
-    n2.markdown(f"<center style='color:#8b949e;'>Pagina {st.session_state.pagina + 1}</center>", unsafe_allow_html=True)
     if n3.button("Proximo") and (st.session_state.pagina + 1) * registros_pag < total_l:
         st.session_state.pagina += 1
         st.rerun()
 else:
-    st.info("Escolha uma das abas acima para carregar sua lista de leads.")
+    st.info("Utilize uma das abas acima para carregar sua lista de contatos.")

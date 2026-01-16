@@ -25,12 +25,13 @@ st.markdown("""
     }
     div.stButton > button:hover { background-color: #008f6f; color: white; }
     
-    /* Estilo para o PIX na Sidebar */
+    /* Estilo para o PIX na Sidebar conforme seu print */
     .pix-sidebar {
         background-color: #1d2129;
-        padding: 10px;
-        border-radius: 5px;
-        border: 1px solid #00a884;
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px dashed #00a884;
+        margin-bottom: 20px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -43,6 +44,7 @@ def modal_apoio():
     st.info("Chave PIX (CPF):")
     st.code("06060001190", language="text")
     st.write("Qualquer valor é bem-vindo. Obrigado pelo apoio!")
+    # Botão Corrigido: No Streamlit, simplesmente encerrar a execução da função fecha o dialog
     if st.button("Fechar"):
         st.rerun()
 
@@ -58,12 +60,21 @@ with st.sidebar:
     registros_pag = st.select_slider("Registros por página", options=[10, 20, 50], value=10)
     
     st.divider()
-    st.markdown('<div class="pix-sidebar"><b style="color:#00a884;">Chave PIX (CPF):</b><br>06060001190</div>', unsafe_allow_html=True)
     
-    st.divider()
+    # MENSAGEM NA LATERAL MANTIDA (Conforme solicitado)
+    st.markdown("""
+    <div class="pix-sidebar">
+        <b style="color: white; font-size: 16px;">☕ Apoie o Projeto</b><br>
+        <span style="color: #8b949e; font-size: 13px;">Gostou da ferramenta? Ajude a manter o servidor online!</span><br><br>
+        <b style="color: #00a884;">Chave PIX (CPF):</b><br>
+        <span style="color: #00a884; font-family: monospace;">06060001190</span>
+    </div>
+    """, unsafe_allow_html=True)
+    
     if st.button("Limpar Tudo"):
         st.session_state.chamados = set()
         st.session_state.lista_leads = []
+        st.session_state.pagina = 0
         st.rerun()
 
 # --- 6. AREA PRINCIPAL ---
@@ -74,8 +85,8 @@ tab_url, tab_csv = st.tabs(["🔍 Extração via URL", "📁 Importar CSV"])
 with tab_url:
     url_minerar = st.text_input("Cole a URL do site", placeholder="https://...")
     if st.button("Iniciar Mineração"):
-        # Exemplo de carregamento simulado para mostrar o pop-up
-        st.session_state.lista_leads = [{"name": "Teste URL", "normalized": "5511999999999"}]
+        # Simulação para ativar o modal
+        st.session_state.lista_leads = [{"name": "Lead Teste URL", "normalized": "5511999999999"}]
         modal_apoio()
 
 with tab_csv:
@@ -84,8 +95,7 @@ with tab_csv:
         df = pd.read_csv(arquivo)
         if 'normalized' in df.columns:
             st.session_state.lista_leads = df.to_dict('records')
-            # DISPARA O POP-UP APÓS O CARREGAMENTO
-            modal_apoio()
+            modal_apoio() # Ativa o modal após carregar o CSV
         else:
             st.error("Coluna 'normalized' não encontrada.")
 
@@ -95,7 +105,6 @@ if st.session_state.lista_leads:
     for c in contatos:
         c['tel_limpo'] = str(c.get('normalized', '')).replace('+', '').replace(' ', '').strip()
     
-    # Dashboard
     total_l = len(contatos)
     feitos = len(st.session_state.chamados)
     m1, m2, m3 = st.columns(3)
@@ -105,7 +114,6 @@ if st.session_state.lista_leads:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Paginação e Lista
     inicio = st.session_state.pagina * registros_pag
     bloco = contatos[inicio : inicio + registros_pag]
 

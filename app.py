@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import time
-import requests
 from urllib.parse import quote
 import streamlit.components.v1 as components
 
@@ -24,61 +23,57 @@ st.markdown("""
         width: 100%;
     }
     div.stButton > button:hover { background-color: #008f6f; color: white; }
+    .pix-box {
+        background-color: #1d2129;
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px dashed #25D366;
+        color: white;
+        font-size: 14px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. FUNCOES DE APOIO ---
-def buscar_leads_notion(token, database_id):
-    url = f"https://api.notion.com/v1/databases/{database_id}/query"
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Notion-Version": "2022-06-28",
-        "Content-Type": "application/json"
-    }
-    try:
-        response = requests.post(url, headers=headers)
-        if response.status_code == 200:
-            data = response.json()
-            leads = []
-            for page in data.get("results", []):
-                props = page.get("properties", {})
-                nome = props.get("Nome", {}).get("title", [{}])[0].get("text", {}).get("content", "Profissional")
-                tel = ""
-                if "Telefone" in props:
-                    p_type = props["Telefone"]["type"]
-                    if p_type == "phone_number": tel = props["Telefone"]["phone_number"]
-                    elif props["Telefone"]["rich_text"]: tel = props["Telefone"]["rich_text"][0]["text"]["content"]
-                if tel: leads.append({"name": nome, "normalized": tel})
-            return leads
-        return None
-    except: return None
-
-# --- 4. ESTADOS DE SESSAO ---
+# --- 3. ESTADOS DE SESSAO ---
 if "chamados" not in st.session_state: st.session_state.chamados = set()
 if "pagina" not in st.session_state: st.session_state.pagina = 0
 if "lista_leads" not in st.session_state: st.session_state.lista_leads = []
 
-# --- 5. SIDEBAR ---
+# --- 4. SIDEBAR ---
 with st.sidebar:
-    st.markdown("<h3 style='color: white;'>Configuracoes</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color: white;'>Configurações</h3>", unsafe_allow_html=True)
     link_destino = st.text_input("Link de destino", "https://psitelemedicina.netlify.app/")
-    registros_pag = st.select_slider("Registros por pagina", options=[10, 20, 50], value=10)
+    registros_pag = st.select_slider("Registros por página", options=[10, 20, 50], value=10)
+    
+    st.divider()
+    
+    # --- CAMPO DE APOIO (PIX) ---
+    st.markdown("### ☕ Apoie o Projeto")
+    st.markdown("""
+    <div class="pix-box">
+        Gostou da ferramenta? Ajude a manter o servidor online!<br><br>
+        <b>PIX (CPF):</b><br>
+        <code>06060001190</code>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.divider()
     if st.button("Limpar Tudo"):
         st.session_state.chamados = set()
         st.session_state.lista_leads = []
+        st.session_state.pagina = 0
         st.rerun()
 
-# --- 6. AREA PRINCIPAL ---
+# --- 5. AREA PRINCIPAL ---
 st.markdown("<h2 style='color: white; margin-bottom: 25px;'>Gerenciador de Leads</h2>", unsafe_allow_html=True)
 
-# Tabs para as 3 formas de entrada
-tab_url, tab_csv, tab_notion = st.tabs(["🔍 Extracao via URL", "📁 Importar CSV", "🔌 Conectar Notion"])
+# Tabs para as formas de entrada
+tab_url, tab_csv = st.tabs(["🔍 Extração via URL", "📁 Importar CSV"])
 
 with tab_url:
     url_minerar = st.text_input("Cole a URL do site (ex: PsyMeet)", placeholder="https://www.psymeet.social/...")
-    if st.button("Iniciar Mineracao"):
-        st.warning("Integracao de mineracao ativa. Aguardando processamento da URL...")
-        # Aqui entraria sua logica de scraping da URL
+    if st.button("Iniciar Mineração"):
+        st.warning("Integração de mineração ativa. Aguardando processamento da URL...")
 
 with tab_csv:
     arquivo = st.file_uploader("Suba seu arquivo CSV", type="csv")
@@ -86,20 +81,11 @@ with tab_csv:
         df = pd.read_csv(arquivo)
         if 'normalized' in df.columns:
             st.session_state.lista_leads = df.to_dict('records')
-            st.success(f"{len(st.session_state.lista_leads)} leads carregados!")
+            st.success(f"{len(st.session_state.lista_leads)} leads carregados via CSV!")
+        else:
+            st.error("Coluna 'normalized' não encontrada no arquivo.")
 
-with tab_notion:
-    n_token = st.text_input("Notion Secret", type="password")
-    n_id = st.text_input("Database ID")
-    if st.button("Sincronizar Notion"):
-        if n_token and n_id:
-            leads = buscar_leads_notion(n_token, n_id)
-            if leads:
-                st.session_state.lista_leads = leads
-                st.success(f"{len(leads)} leads importados!")
-                st.rerun()
-
-# --- 7. EXIBICAO DA FILA DE DISPAROS ---
+# --- 6. EXIBICAO DA FILA DE DISPAROS ---
 if st.session_state.lista_leads:
     contatos = st.session_state.lista_leads
     for c in contatos:
@@ -112,7 +98,7 @@ if st.session_state.lista_leads:
     m1, m2, m3 = st.columns(3)
     m1.markdown(f'<div class="metric-card"><div class="metric-lab">Total</div><div class="metric-val">{total_l}</div></div>', unsafe_allow_html=True)
     m2.markdown(f'<div class="metric-card"><div class="metric-lab">Chamados</div><div class="metric-val">{feitos}</div></div>', unsafe_allow_html=True)
-    m3.markdown(f'<div class="metric-card"><div class="metric-lab">Restante</div><div class="metric-val">{total_l - feitos}</div></div>', unsafe_allow_html=True)
+    m3.markdown(f'<div class="metric-card"><div class="metric-lab">Restante</div><div class="metric-val">{max(0, total_l - feitos)}</div></div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -146,10 +132,11 @@ if st.session_state.lista_leads:
 
     # Paginacao
     n1, n2, n3 = st.columns([1, 2, 1])
-    if n1.button("Anterior") and st.session_state.pagina > 0:
+    if n1.button("⬅️ Anterior") and st.session_state.pagina > 0:
         st.session_state.pagina -= 1
         st.rerun()
-    if n3.button("Proximo") and (st.session_state.pagina + 1) * registros_pag < total_l:
+    n2.markdown(f"<center style='color:#8b949e; padding-top:10px;'>Página {st.session_state.pagina + 1}</center>", unsafe_allow_html=True)
+    if n3.button("Próximo ➡️") and (st.session_state.pagina + 1) * registros_pag < total_l:
         st.session_state.pagina += 1
         st.rerun()
 else:

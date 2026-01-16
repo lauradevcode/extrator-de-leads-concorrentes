@@ -17,20 +17,28 @@ st.markdown("""
     }
     .metric-val { font-size: 24px; font-weight: 700; color: #ffffff; }
     .metric-lab { font-size: 10px; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; }
+    
+    /* Estilo para a caixa de PIX */
+    .pix-container {
+        background-color: #1d2129;
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px dashed #00a884;
+        margin-bottom: 10px;
+    }
+    .pix-title {
+        color: #00a884;
+        font-weight: bold;
+        font-size: 14px;
+        margin-bottom: 5px;
+    }
+    
     div.stButton > button {
         background-color: #00a884; color: white; border: none;
         padding: 8px 20px; border-radius: 4px; font-weight: 600;
         width: 100%;
     }
     div.stButton > button:hover { background-color: #008f6f; color: white; }
-    .pix-box {
-        background-color: #1d2129;
-        padding: 15px;
-        border-radius: 8px;
-        border: 1px dashed #25D366;
-        color: white;
-        font-size: 14px;
-    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -47,15 +55,14 @@ with st.sidebar:
     
     st.divider()
     
-    # --- CAMPO DE APOIO (PIX) ---
-    st.markdown("### ☕ Apoie o Projeto")
-    st.markdown("""
-    <div class="pix-box">
-        Gostou da ferramenta? Ajude a manter o servidor online!<br><br>
-        <b>PIX (CPF):</b><br>
-        <code>06060001190</code>
-    </div>
-    """, unsafe_allow_html=True)
+    # --- SEÇÃO PIX COM CAMPO COPIÁVEL ---
+    st.markdown('<div class="pix-container"><div class="pix-title">☕ Apoie o Projeto</div>'
+                '<span style="font-size:12px; color:#8b949e;">Ajude a manter o servidor online!</span></div>', unsafe_allow_html=True)
+    
+    # O st.code cria uma caixa que tem um botão nativo de "copiar" no canto direito
+    st.write("👉 Clique no ícone à direita para copiar:")
+    st.code("06060001190", language="text")
+    st.caption("Chave PIX (CPF)")
     
     st.divider()
     if st.button("Limpar Tudo"):
@@ -67,13 +74,12 @@ with st.sidebar:
 # --- 5. AREA PRINCIPAL ---
 st.markdown("<h2 style='color: white; margin-bottom: 25px;'>Gerenciador de Leads</h2>", unsafe_allow_html=True)
 
-# Tabs para as formas de entrada
 tab_url, tab_csv = st.tabs(["🔍 Extração via URL", "📁 Importar CSV"])
 
 with tab_url:
     url_minerar = st.text_input("Cole a URL do site (ex: PsyMeet)", placeholder="https://www.psymeet.social/...")
     if st.button("Iniciar Mineração"):
-        st.warning("Integração de mineração ativa. Aguardando processamento da URL...")
+        st.warning("Aguardando processamento da URL...")
 
 with tab_csv:
     arquivo = st.file_uploader("Suba seu arquivo CSV", type="csv")
@@ -81,11 +87,9 @@ with tab_csv:
         df = pd.read_csv(arquivo)
         if 'normalized' in df.columns:
             st.session_state.lista_leads = df.to_dict('records')
-            st.success(f"{len(st.session_state.lista_leads)} leads carregados via CSV!")
-        else:
-            st.error("Coluna 'normalized' não encontrada no arquivo.")
+            st.success(f"{len(st.session_state.lista_leads)} leads carregados!")
 
-# --- 6. EXIBICAO DA FILA DE DISPAROS ---
+# --- 6. EXIBIÇÃO DA LISTA ---
 if st.session_state.lista_leads:
     contatos = st.session_state.lista_leads
     for c in contatos:
@@ -94,7 +98,6 @@ if st.session_state.lista_leads:
     total_l = len(contatos)
     feitos = len(st.session_state.chamados)
 
-    # Metricas
     m1, m2, m3 = st.columns(3)
     m1.markdown(f'<div class="metric-card"><div class="metric-lab">Total</div><div class="metric-val">{total_l}</div></div>', unsafe_allow_html=True)
     m2.markdown(f'<div class="metric-card"><div class="metric-lab">Chamados</div><div class="metric-val">{feitos}</div></div>', unsafe_allow_html=True)
@@ -102,7 +105,6 @@ if st.session_state.lista_leads:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Lista
     inicio = st.session_state.pagina * registros_pag
     bloco = contatos[inicio : inicio + registros_pag]
 
@@ -115,7 +117,7 @@ if st.session_state.lista_leads:
             st.markdown(f"<div style='color:white; font-weight:600;'>{p.get('name', 'Profissional')}</div><div style='color:#8b949e; font-size:12px;'>{num}</div>", unsafe_allow_html=True)
         
         with col_status:
-            txt = "CONCLUIDO" if foi_chamado else "PENDENTE"
+            txt = "CONCLUÍDO" if foi_chamado else "PENDENTE"
             cor = "#00a884" if foi_chamado else "#8b949e"
             st.markdown(f"<div style='margin-top:10px; color:{cor}; font-size:11px; font-weight:bold;'>{txt}</div>", unsafe_allow_html=True)
         
@@ -123,14 +125,14 @@ if st.session_state.lista_leads:
             if not foi_chamado:
                 if st.button("Abrir WhatsApp", key=f"btn_{num}"):
                     st.session_state.chamados.add(num)
-                    msg = quote(f"Ola {p.get('name', 'Doutor(a)')}, conheca meu projeto: {link_destino}")
+                    msg = quote(f"Olá {p.get('name', 'Doutor(a)')}, conheça meu projeto: {link_destino}")
                     js = f'window.open("https://wa.me/{num}?text={msg}", "_blank");'
                     components.html(f"<script>{js}</script>", height=0)
                     time.sleep(0.5)
                     st.rerun()
         st.markdown("<hr style='margin:5px 0; border-color:#30363d;'>", unsafe_allow_html=True)
 
-    # Paginacao
+    # Navegação
     n1, n2, n3 = st.columns([1, 2, 1])
     if n1.button("⬅️ Anterior") and st.session_state.pagina > 0:
         st.session_state.pagina -= 1

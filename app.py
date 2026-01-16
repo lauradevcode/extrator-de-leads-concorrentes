@@ -28,15 +28,14 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. FUNÇÃO DO POP-UP (CORRIGIDA) ---
+# --- 3. FUNÇÃO DO POP-UP (BOTÃO REMOVIDO) ---
 @st.dialog("☕ Apoie o Projeto")
 def modal_apoio():
-    st.write("Sua ajuda mantém o servidor online!")
+    st.write("Sua ajuda é fundamental para manter o servidor online e trazer novas atualizações!")
+    st.info("Chave PIX (CPF):")
     st.code("06060001190", language="text")
-    st.caption("Chave PIX (CPF)")
-    # No Dialog, o botão apenas precisa existir. O clique no X ou fora também fecha.
-    if st.button("Entendido"):
-        st.rerun()
+    st.write("Qualquer valor é bem-vindo. Obrigado pelo apoio!")
+    st.caption("Clique no 'X' acima ou fora desta caixa para fechar.")
 
 # --- 4. ESTADOS DE SESSAO ---
 if "chamados" not in st.session_state: st.session_state.chamados = set()
@@ -47,20 +46,33 @@ if "lista_leads" not in st.session_state: st.session_state.lista_leads = []
 with st.sidebar:
     st.header("⚙️ Configurações")
     
-    # NOVA FUNÇÃO: Mensagem Customizada
-    st.subheader("Script de Abordagem")
-    msg_padrao = "Olá {nome}, vi seu perfil e gostaria de apresentar meu projeto: {link}"
-    user_msg = st.text_area("Edite sua mensagem:", value=msg_padrao, help="Use {nome} para o nome do lead e {link} para o seu link.")
+    # Campo para o usuário criar sua própria mensagem
+    st.subheader("Script de Mensagem")
+    msg_custom = st.text_area(
+        "Personalize seu texto:", 
+        value="Olá {nome}, vi seu perfil e gostaria de apresentar meu projeto: {link}",
+        help="Use {nome} para o nome do lead e {link} para o seu link de destino."
+    )
     
     link_destino = st.text_input("Link de destino:", "https://psitelemedicina.netlify.app/")
     registros_pag = st.select_slider("Leads por página:", options=[10, 20, 50], value=10)
     
     st.divider()
-    st.markdown(f'<div class="pix-sidebar"><b style="color:white;">☕ Apoie o Projeto</b><br><small>Chave PIX (CPF):</small><br><code style="color:#00a884;">06060001190</code></div>', unsafe_allow_html=True)
+    
+    # Mensagem de apoio fixa na lateral
+    st.markdown(f"""
+    <div class="pix-sidebar">
+        <b style="color:white; font-size:16px;">☕ Apoie o Projeto</b><br>
+        <span style="color:#8b949e; font-size:12px;">Gostou da ferramenta? Ajude-nos!</span><br><br>
+        <b style="color:#00a884;">Chave PIX (CPF):</b><br>
+        <code style="color:#00a884;">06060001190</code>
+    </div>
+    """, unsafe_allow_html=True)
     
     if st.button("Limpar Tudo"):
         st.session_state.chamados = set()
         st.session_state.lista_leads = []
+        st.session_state.pagina = 0
         st.rerun()
 
 # --- 6. AREA PRINCIPAL ---
@@ -69,33 +81,37 @@ st.title("🚀 Gerenciador de Leads")
 tab_url, tab_csv = st.tabs(["🔍 Extração via URL", "📁 Importar CSV"])
 
 with tab_url:
-    url_minerar = st.text_input("Cole a URL do site:")
+    url_minerar = st.text_input("Cole a URL para extração:")
     if st.button("Iniciar Mineração"):
-        st.info("Funcionalidade em desenvolvimento para a URL inserida.")
+        st.info("Simulação: Leads extraídos com sucesso!")
+        st.session_state.lista_leads = [{"name": "Lead Exemplo", "normalized": "5511999999999"}]
+        modal_apoio()
 
 with tab_csv:
-    arquivo = st.file_uploader("Suba sua lista (CSV)", type="csv")
+    arquivo = st.file_uploader("Importar base de dados (CSV)", type="csv")
     if arquivo:
         df = pd.read_csv(arquivo)
         if 'normalized' in df.columns:
             st.session_state.lista_leads = df.to_dict('records')
             modal_apoio()
         else:
-            st.error("Erro: Coluna 'normalized' não encontrada.")
+            st.error("Coluna 'normalized' não encontrada no CSV.")
 
-# --- 7. FILA DE DISPAROS ---
+# --- 7. EXIBIÇÃO E DISPAROS ---
 if st.session_state.lista_leads:
     leads = st.session_state.lista_leads
     total = len(leads)
     feitos = len(st.session_state.chamados)
     
-    # Dashboard
+    # Dashboard de Métricas
     m1, m2, m3 = st.columns(3)
     m1.markdown(f'<div class="metric-card"><div style="color:#8b949e">TOTAL</div><div class="metric-val">{total}</div></div>', unsafe_allow_html=True)
     m2.markdown(f'<div class="metric-card"><div style="color:#8b949e">CHAMADOS</div><div class="metric-val">{feitos}</div></div>', unsafe_allow_html=True)
     m3.markdown(f'<div class="metric-card"><div style="color:#8b949e">RESTANTE</div><div class="metric-val">{total - feitos}</div></div>', unsafe_allow_html=True)
 
-    # Paginação
+    st.write("---")
+
+    # Lista com Paginação
     inicio = st.session_state.pagina * registros_pag
     bloco = leads[inicio : inicio + registros_pag]
 
@@ -106,23 +122,26 @@ if st.session_state.lista_leads:
         col_info, col_status, col_acao = st.columns([4, 1, 1.5])
         
         with col_info:
-            st.markdown(f"<div style='color:white; font-weight:600;'>{p.get('name', 'Profissional')}</div><div style='color:#8b949e; font-size:12px;'>{num}</div>", unsafe_allow_html=True)
+            st.markdown(f"**{p.get('name', 'Profissional')}** \n<small style='color:#8b949e'>{num}</small>", unsafe_allow_html=True)
         
         with col_status:
-            cor = "#00a884" if foi_chamado else "#8b949e"
-            st.markdown(f"<div style='margin-top:10px; color:{cor}; font-size:11px; font-weight:bold;'>{'CONCLUÍDO' if foi_chamado else 'PENDENTE'}</div>", unsafe_allow_html=True)
+            status_txt = "CONCLUÍDO" if foi_chamado else "PENDENTE"
+            status_cor = "#00a884" if foi_chamado else "#8b949e"
+            st.markdown(f"<p style='color:{status_cor}; font-weight:bold; font-size:12px; margin-top:10px;'>{status_txt}</p>", unsafe_allow_html=True)
         
         with col_acao:
             if not foi_chamado:
-                if st.button("Enviar WhatsApp", key=f"btn_{num}"):
+                if st.button("Abrir WhatsApp", key=f"btn_{num}"):
                     st.session_state.chamados.add(num)
-                    # Lógica de Mensagem Customizada
-                    nome_lead = p.get('name', 'Doutor(a)')
-                    texto_final = user_msg.replace("{nome}", nome_lead).replace("{link}", link_destino)
                     
-                    link_wa = f"https://wa.me/{num}?text={quote(texto_final)}"
+                    # Processa a mensagem customizada
+                    texto = msg_custom.replace("{nome}", p.get('name', 'Doutor(a)')).replace("{link}", link_destino)
+                    
+                    link_wa = f"https://wa.me/{num}?text={quote(texto)}"
                     js = f'window.open("{link_wa}", "_blank");'
                     components.html(f"<script>{js}</script>", height=0)
                     time.sleep(0.5)
                     st.rerun()
         st.markdown("<hr style='margin:5px 0; border-color:#1d2129;'>", unsafe_allow_html=True)
+else:
+    st.info("Aguardando carregamento de contatos...")

@@ -5,7 +5,7 @@ from urllib.parse import quote
 import streamlit.components.v1 as components
 
 # 1. Configuracao da Pagina
-st.set_page_config(page_title="Lead Machine Pro", layout="wide")
+st.set_page_config(page_title="Extrator Lead Pro", layout="wide")
 
 # --- 2. DESIGN SYSTEM (CSS) ---
 st.markdown("""
